@@ -11,14 +11,22 @@ router = APIRouter()
 @router.get("/dashboard/summary")
 async def get_dashboard_summary(
     property_id: str,
+    month: int = None,
+    year: int = None,
     current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     
     tenant_id = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
     
-    revenue_data = await get_revenue_summary(property_id, tenant_id)
+    import datetime
+    if month is None:
+        month = datetime.datetime.utcnow().month
+    if year is None:
+        year = datetime.datetime.utcnow().year
     
-    total_revenue_float = float(revenue_data['total'])
+    revenue_data = await get_revenue_summary(property_id, tenant_id, month, year)
+    
+    total_revenue_float = round(float(revenue_data['total']), 2)
     
     return {
         "property_id": revenue_data['property_id'],
