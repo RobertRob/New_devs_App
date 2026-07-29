@@ -2,24 +2,47 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Any, List
 
-async def calculate_monthly_revenue(property_id: str, tenant_id: str, month: int, year: int) -> Dict[str, Any]:
+async def get_property_timezone(property_id: str, tenant_id: str) -> str:
     """
-    Calculates revenue for a specific month using the property's timezone.
+    Retrieves the timezone string for a given property from the database.
+    Defaults to 'UTC' if not found or on error.
     """
-    start_date = datetime(year, month, 1)
-    if month < 12:
-        end_date = datetime(year, month + 1, 1)
-    else:
-        end_date = datetime(year + 1, 1, 1)
-        
-    print(f"DEBUG: Querying revenue for {property_id} from {start_date} to {end_date}")
-
     try:
         from app.core.database_pool import db_pool
-        from sqlalchemy import text
         
         if db_pool.session_factory:
             async with db_pool.get_session() as session:
+                from sqlalchemy import text
+                tz_query = text("SELECT timezone FROM properties WHERE id = :property_id AND tenant_id = :tenant_id")
+                tz_result = await session.execute(tz_query, {"property_id": property_id, "tenant_id": tenant_id})
+                tz_row = tz_result.fetchone()
+                if tz_row and tz_row.timezone:
+                    return tz_row.timezone
+    except Exception as e:
+        import logging
+        logging.error(f"Error fetching timezone for property {property_id}: {e}")
+        
+    return 'UTC'
+
+async def calculate_monthly_revenue(property_id: str, tenant_id: str, month: int, year: int, timezone_str: str = 'UTC') -> Dict[str, Any]:
+    """
+    Calculates revenue for a specific month using timezone-aware datetimes.
+    """
+    import zoneinfo
+    tz = zoneinfo.ZoneInfo(timezone_str)
+    start_date = datetime(year, month, 1, tzinfo=tz)
+    if month < 12:
+        end_date = datetime(year, month + 1, 1, tzinfo=tz)
+    else:
+        end_date = datetime(year + 1, 1, 1, tzinfo=tz)
+        
+    try:
+        from app.core.database_pool import db_pool
+        
+        if db_pool.session_factory:
+            async with db_pool.get_session() as session:
+                from sqlalchemy import text
+                
                 query = text("""
                     SELECT 
                         property_id,
@@ -41,7 +64,7 @@ async def calculate_monthly_revenue(property_id: str, tenant_id: str, month: int
                 })
                 row = result.fetchone()
                 
-                if row:
+                if row and row.total_revenue is not None:
                     total_revenue = Decimal(str(row.total_revenue))
                     return {
                         "property_id": property_id,
@@ -62,10 +85,10 @@ async def calculate_monthly_revenue(property_id: str, tenant_id: str, month: int
             raise Exception("Database pool not available")
             
     except Exception as e:
-        print(f"Database error for {property_id} (tenant: {tenant_id}): {e}")
+        print(f"Database error for monthly {property_id} (tenant: {tenant_id}): {e}")
         return {
             "property_id": property_id,
-            "tenant_id": tenant_id, 
+            "tenant_id": tenant_id,
             "total": "0.00",
             "currency": "USD",
             "count": 0

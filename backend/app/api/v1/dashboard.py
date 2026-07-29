@@ -18,12 +18,6 @@ async def get_dashboard_summary(
     
     tenant_id = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
     
-    import datetime
-    if month is None:
-        month = datetime.datetime.utcnow().month
-    if year is None:
-        year = datetime.datetime.utcnow().year
-    
     revenue_data = await get_revenue_summary(property_id, tenant_id, month, year)
     
     total_revenue_float = round(float(revenue_data['total']), 2)
