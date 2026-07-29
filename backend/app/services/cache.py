@@ -34,7 +34,7 @@ async def get_revenue_summary(property_id: str, tenant_id: str, month: int, year
         month = now.month
         year = now.year
 
-    cache_key = f"revenue_monthly:{tenant_id}:{property_id}:{year}:{month}"
+    cache_key = f"revenue_monthly_v2:{tenant_id}:{property_id}:{year}:{month}"
     
     # Try to get from cache
     cached = await redis_client.get(cache_key)
